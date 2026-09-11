@@ -29,11 +29,14 @@ namespace Trading {
       run_ = true;
       ASSERT(tcp_socket_.connect(ip_, iface_, port_, false) >= 0,
              "Unable to connect to ip:" + ip_ + " port:" + std::to_string(port_) + " on iface:" + iface_ + " error:" + std::string(std::strerror(errno)));
-      ASSERT(Common::createAndStartThread(-1, "Trading/OrderGateway", [this]() { run(); }) != nullptr, "Failed to start OrderGateway thread.");
+      thread_ = Common::createAndStartThread(-1, "Trading/OrderGateway", [this]() { run(); });
+    ASSERT(thread_ != nullptr, "Failed to start thread.");
     }
 
     auto stop() -> void {
       run_ = false;
+      if (thread_ && thread_->joinable()) { thread_->join(); }
+      thread_.reset();
     }
 
     /// Deleted default, copy & move constructors and assignment-operators.
@@ -62,6 +65,7 @@ namespace Trading {
     Exchange::ClientResponseLFQueue *incoming_responses_ = nullptr;
 
     std::atomic<bool> run_ = {false};
+    std::unique_ptr<std::thread> thread_;
 
     std::string time_str_;
     Logger logger_;

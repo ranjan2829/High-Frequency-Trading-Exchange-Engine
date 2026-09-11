@@ -37,7 +37,8 @@ namespace Trading {
     /// Start and stop the trade engine main thread.
     auto start() -> void {
       run_ = true;
-      ASSERT(Common::createAndStartThread(-1, "Trading/TradeEngine", [this] { run(); }) != nullptr, "Failed to start TradeEngine thread.");
+      thread_ = Common::createAndStartThread(-1, "Trading/TradeEngine", [this] { run(); });
+    ASSERT(thread_ != nullptr, "Failed to start thread.");
     }
 
     auto stop() -> void {
@@ -115,6 +116,7 @@ namespace Trading {
 
     Nanos last_event_time_ = 0;
     std::atomic<bool> run_ = {false};
+    std::unique_ptr<std::thread> thread_;
 
     std::string time_str_;
     Logger logger_;

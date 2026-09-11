@@ -1,149 +1,122 @@
-# Nanosecond High-Frequency Trading Exchange Engine
+# High-Frequency Trading Exchange Engine
 
-Production-grade C++20 trading system with sub-100ns matching latency, modern memory safety, and zero-warning compilation.
+[![ci](https://github.com/ranjan2829/High-Frequency-Trading-Exchange-Engine/actions/workflows/ci.yml/badge.svg)](https://github.com/ranjan2829/High-Frequency-Trading-Exchange-Engine/actions/workflows/ci.yml)
+![C++20](https://img.shields.io/badge/C%2B%2B-20-blue)
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 
-## System Architecture
+C++20 teaching / research stack for a **low-latency matching engine**: lock-free queues, price-time order book, TCP order gateway, UDP multicast market data, and sample maker/taker clients.
 
+> **What this is:** a serious educational skeleton of exchange + trading client plumbing.  
+> **What this is not:** a production exchange. Latency numbers depend on your machine, build flags, and measurement method — measure yourself (see below).
+
+## Architecture
+
+```mermaid
+flowchart LR
+  subgraph Clients
+    OG[OrderGateway]
+    MD[MdConsumer]
+    TE[TradeEngine]
+    ALG[Maker / Taker]
+  end
+  subgraph Exchange
+    OS[OrderServer + FIFO]
+    ME[MatchingEngine]
+    OB[MEOrderBook x tickers]
+    MDP[MD Publisher]
+    SNAP[Snapshot]
+  end
+  OG -->|TCP :12345| OS --> ME --> OB
+  OB --> OS -->|TCP responses| OG
+  OB --> MDP -->|UDP mcast incremental| MD
+  MDP --> SNAP -->|UDP mcast snapshot| MD
+  MD --> TE --> ALG --> OG
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                    EXCHANGE MATCHING ENGINE                      │
-│  ┌────────────────┐  ┌──────────────┐  ┌───────────────────┐   │
-│  │ Order Server   │  │   Matching   │  │ Market Data       │   │
-│  │ (TCP:12345)    │→→│   Engine     │→→│ Publisher (UDP)   │   │
-│  │ FIFO Sequencer │  │ Price-Time   │  │ Snapshot + Incr.  │   │
-│  └────────────────┘  └──────────────┘  └───────────────────┘   │
-│           ↑                  ↓                      ↓            │
-│    Lock-Free Queue    Lock-Free Queue      Multicast UDP        │
-└───────────┬─────────────────┬────────────────────┬──────────────┘
-            │                 │                    │
-┌───────────┴─────────────────┴────────────────────┴──────────────┐
-│                     TRADING CLIENTS (1-10)                       │
-│  ┌────────────────┐  ┌──────────────┐  ┌───────────────────┐   │
-│  │ Order Gateway  │  │ Trade Engine │  │ Market Data       │   │
-│  │ (TCP Client)   │←←│ (Algorithms) │←←│ Consumer (UDP)    │   │
-│  └────────────────┘  └──────────────┘  └───────────────────┘   │
-│                              ↓                                   │
-│                    ┌─────────────────┐                          │
-│                    │ Risk Manager    │                          │
-│                    │ Position Keeper │                          │
-│                    └─────────────────┘                          │
-└──────────────────────────────────────────────────────────────────┘
+
+## Order lifecycle
+
+```mermaid
+sequenceDiagram
+  participant C as Trading client
+  participant OS as OrderServer
+  participant ME as MatchingEngine
+  participant OB as Order book
+  participant MD as Market data
+  C->>OS: NEW/CANCEL (TCP)
+  OS->>ME: sequenced request (LFQ)
+  ME->>OB: add / cancel / match
+  OB-->>ME: fills + book updates
+  ME-->>OS: client responses (LFQ)
+  OS-->>C: ACK / FILL (TCP)
+  ME-->>MD: incremental updates (LFQ→UDP)
+  MD-->>C: book + trades (UDP)
 ```
 
-## Performance Metrics
+## Concurrency
 
-| Metric | Value | Status |
-|--------|-------|--------|
-| Average Latency | 89 nanoseconds | Target: <100ns |
-| P99 Latency | 145 nanoseconds | Sub-microsecond |
-| Orders Processed | 20,000+ verified | Zero-error |
-| Build Warnings | 0 | `-Wall -Wextra -Wpedantic` |
+```mermaid
+flowchart TB
+  OS[OrderServer thread] -->|client_requests LFQ| ME[MatchingEngine thread]
+  ME -->|client_responses LFQ| OS
+  ME -->|md_updates LFQ| MDP[MarketDataPublisher thread]
+  MDP -->|snapshot LFQ| SNAP[SnapshotSynthesizer thread]
+```
 
-## Technology Stack
+SPSC lock-free queues between threads. Matching is **single-threaded across tickers** (deterministic, no lock on the hot path).
 
-| Component | Details |
-|-----------|---------|
-| **Language** | C++20 (`-std=c++20`, no extensions) |
-| **Compiler** | Clang/GCC with `-O3 -march=native -flto -ffast-math` |
-| **Concurrency** | `std::atomic`, lock-free queues, CPU core affinity (`pthread_setaffinity_np`) |
-| **Memory** | `std::unique_ptr` ownership, custom lock-free memory pools, zero hot-path allocations |
-| **Networking** | TCP (order routing), Multicast UDP (market data), non-blocking I/O |
-| **Timing** | `std::chrono` nanosecond-precision, hardware-aligned data structures (64-byte) |
-
-## C++20 Modernization
-
-This codebase has been fully modernized from C++17 to C++20 with the following improvements:
-
-**Thread Safety**
-- Replaced all `volatile bool` flags with `std::atomic<bool>` and proper memory ordering (`acquire`/`release`)
-- Fixed lambda captures in thread creation to prevent dangling references (explicit value captures with pack expansion)
-- Atomic signal handling for graceful shutdown
-
-**Memory Safety**
-- Replaced all raw `new`/`delete` with `std::unique_ptr` and `std::make_unique`
-- RAII-based thread lifecycle management (`std::unique_ptr<std::thread>`)
-- Fixed deleted move constructor signatures (`const T&&` → `T&&`)
-
-**Modern Idioms**
-- `using` type aliases instead of `typedef`
-- `[[nodiscard]]` on functions with important return values
-- `[[maybe_unused]]` to suppress intentional unused-variable warnings
-- `snprintf` replacing `sprintf` for buffer-overflow protection
-- `std::stoi`/`std::stod` replacing `atoi`/`atof` with proper error handling
-- `std::mt19937` + `<random>` distributions replacing `srand`/`rand`
-
-**Build System**
-- CMake 3.12+ with `CMAKE_CXX_STANDARD_REQUIRED ON` and `CMAKE_CXX_EXTENSIONS OFF`
-- Release: `-O3 -march=native -mtune=native -flto -funroll-loops -ffast-math -falign-functions=64 -falign-loops=64`
-- Debug: `-O0 -g3 -fsanitize=address,undefined -fno-omit-frame-pointer`
-- Per-target warnings: `-Wall -Wextra -Wpedantic`
-
-**Platform Compatibility**
-- macOS: `MSG_NOSIGNAL` polyfill, `kqueue`-compatible I/O
-- Linux: Full `pthread_setaffinity_np` CPU pinning support
-- Compiles clean on both AppleClang and GCC
-
-## Build
+## Quick start
 
 ```bash
-# Release build (optimized)
-mkdir build && cd build
-cmake -DCMAKE_BUILD_TYPE=Release ..
-make -j$(nproc)
+git clone https://github.com/ranjan2829/High-Frequency-Trading-Exchange-Engine.git
+cd High-Frequency-Trading-Exchange-Engine
 
-# Debug build (with sanitizers)
-mkdir build-debug && cd build-debug
-cmake -DCMAKE_BUILD_TYPE=Debug ..
-make -j$(nproc)
+# Option A — CMake (preferred in CI / Linux)
+cmake -S . -B /tmp/hft-build -DCMAKE_BUILD_TYPE=Release
+cmake --build /tmp/hft-build -j
+
+# Option B — Makefile fallback (macOS-friendly)
+make -j
+
+# Run
+/tmp/hft-build/exchange_main &          # or ./exchange_main
+/tmp/hft-build/trading_main 1 MAKER 10 0.5 100 1000 -10000
 ```
 
-## Run
+Demo helper: `./scripts/demo.sh`
 
-```bash
-# Start the exchange
-./exchange_main &
+### Trading client args
 
-# Start trading clients (client_id, algo_type, then per-ticker config)
-./trading_main 1 RANDOM 100 0.5 1000 5000 100 &
-./trading_main 2 MAKER  100 0.5 1000 5000 100 &
-```
+`trading_main CLIENT_ID ALGO [CLIP THRESH MAX_ORDER_SIZE MAX_POS MAX_LOSS]…`
 
-## Project Structure
+- `ALGO`: `MAKER` | `TAKER` | `RANDOM`
+- One config quintuple per ticker (up to 8 tickers)
+
+## Project layout
 
 ```
-├── CMakeLists.txt
-├── Exchange Matching Engine/
-│   ├── Common Files/          # Shared utilities
-│   │   ├── thread_utils.h     # Thread creation with CPU affinity
-│   │   ├── lf_queue.h         # Lock-free SPSC queue
-│   │   ├── mem_pool.h         # Lock-free memory pool
-│   │   ├── logging.h          # Async lock-free logger
-│   │   ├── tcp_socket.h       # Non-blocking TCP
-│   │   ├── mcast_socket.h     # Multicast UDP
-│   │   └── types.h            # Core type definitions
-│   └── EXCHANGE/
-│       ├── exchange_main.cpp  # Exchange entry point
-│       ├── matcher/           # Price-time priority matching engine
-│       ├── order_server/      # TCP order gateway + FIFO sequencer
-│       └── market_data/       # Snapshot + incremental market data publisher
-├── trading/
-│   ├── trading_main.cpp       # Trading client entry point
-│   ├── strategy/              # Market maker, liquidity taker, risk manager
-│   ├── market_data/           # Market data consumer
-│   └── order_gw/              # Order gateway client
+ExchangeMatchingEngine/
+  Common/          # LFQ, pools, logging, TCP/UDP
+  EXCHANGE/        # matcher, order_server, market_data
+trading/           # client strategies, risk, gateways
+scripts/demo.sh
 ```
 
-## Key Design Decisions
+## Measuring latency (honestly)
 
-- **Lock-free queues** for inter-thread communication — no mutex contention in the hot path
-- **Memory pools** pre-allocate order objects to avoid heap allocation during trading
-- **FIFO sequencer** ensures deterministic order processing based on receive timestamps
-- **Event-driven architecture** with `std::this_thread::yield()` — no sleep calls in the critical path
-- **Cache-line alignment** (64-byte) prevents false sharing between threads
+1. **In-process book op** — time `MEOrderBook::add` only (warm cache). This can be tens–hundreds of ns on modern CPUs.  
+2. **End-to-end fill RTT** — client enqueue → TCP → match → TCP response. Expect microseconds+ on localhost once logging/net are included.  
+3. Do **not** treat RANDOM mode’s “avg latency” as exchange RTT — it is local enqueue timing.
 
-## Verified Execution
+## 2026 relaunch highlights
 
-- 10 parallel trading clients
-- 8 instruments with real price discovery
-- 20,000+ orders through lock-free queues
-- Zero crashes, zero errors, zero warnings
+- Clean paths (`ExchangeMatchingEngine/`, no trailing spaces)
+- Thread lifetimes retained + joined on stop
+- LFQ indices masked / wrapped correctly; full-queue safe
+- Safer TCP send (partial send retained), `connect()` check fixed
+- Smaller order-id maps for demo-friendly RSS
+- Cap on RANDOM loadgen
+- CI workflow, MIT license, diagrams, honest metrics note
+
+## License
+
+MIT — see `LICENSE`.

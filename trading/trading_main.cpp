@@ -92,7 +92,7 @@ int main(int argc, char **argv) {
 
     for (size_t i = 0; i < ME_MAX_TICKERS; ++i)
       ticker_base_price[i] = base_price_dist(rng);
-    const size_t ORDERS_PER_CLIENT = 100000000;
+    const size_t ORDERS_PER_CLIENT = 10000; // capped for safe demos
     
     auto start_time = Common::getCurrentNanos();
     
@@ -127,7 +127,7 @@ int main(int argc, char **argv) {
     auto total_time_ns = end_time - start_time;
     auto avg_latency_ns = total_time_ns / (ORDERS_PER_CLIENT * 2);
     
-    logger->log("%:% %() % Client % COMPLETED: % orders in % ns (avg latency: % ns)\n", 
+    logger->log("%:% %() % Client % COMPLETED: % orders in % ns (local enqueue avg (NOT exchange RTT): % ns)\n", 
                 __FILE__, __LINE__, __FUNCTION__, Common::getCurrentTimeStr(&time_str),
                 client_id, ORDERS_PER_CLIENT * 2, total_time_ns, avg_latency_ns);
   }
