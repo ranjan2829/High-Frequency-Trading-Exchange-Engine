@@ -1,33 +1,22 @@
-# Build directories
 build/
-cmake-build-*/
-CMakeFiles/
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# macOS
-.DS_Store
-
-# Binaries
-*.o
-*.d
-*.a
-*.so
-*.dylib
-exchange_main
-trading_main
-
-# Logs
-*.log
-*.out
-
-# CMake generated
+build-*/ 
+**/CMakeFiles/
 CMakeCache.txt
 cmake_install.cmake
 Makefile
 compile_commands.json
+*.o
+*.a
+*.dylib
+*.so
+exchange_main
+trading_main
+*.log
+logs/
+.DS_Store
+.idea/
+.vscode/
+.replit
+*.user
+.DS_Store
+.DS_Store

@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.20)
 
 project(NanosecondHFT LANGUAGES CXX)
 
@@ -6,15 +6,15 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -mtune=native -DNDEBUG -flto -funroll-loops -fomit-frame-pointer -ffast-math -falign-functions=64 -falign-loops=64")
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -mtune=native -DNDEBUG -flto -funroll-loops -fomit-frame-pointer -falign-functions=64 -falign-loops=64")
 set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g3 -fsanitize=address,undefined -fno-omit-frame-pointer")
 
 # Include directories
-include_directories("Exchange Matching Engine /Common Files")
-include_directories("Exchange Matching Engine /EXCHANGE")
-include_directories("Exchange Matching Engine /EXCHANGE/matcher")
-include_directories("Exchange Matching Engine /EXCHANGE/order_server")
-include_directories("Exchange Matching Engine /EXCHANGE/market_data")
+include_directories("ExchangeMatchingEngine/Common")
+include_directories("ExchangeMatchingEngine/EXCHANGE")
+include_directories("ExchangeMatchingEngine/EXCHANGE/matcher")
+include_directories("ExchangeMatchingEngine/EXCHANGE/order_server")
+include_directories("ExchangeMatchingEngine/EXCHANGE/market_data")
 include_directories("trading")
 include_directories("trading/strategy")
 include_directories("trading/market_data")
@@ -22,22 +22,22 @@ include_directories("trading/order_gw")
 
 # Common sources
 set(COMMON_SOURCES
-    "Exchange Matching Engine /Common Files/latency_tracker.cpp"
-    "Exchange Matching Engine /Common Files/performance_dashboard.cpp"
-    "Exchange Matching Engine /Common Files/tcp_socket.cpp"
-    "Exchange Matching Engine /Common Files/tcp_server.cpp"
-    "Exchange Matching Engine /Common Files/mcast_socket.cpp"
+    "ExchangeMatchingEngine/Common/latency_tracker.cpp"
+    "ExchangeMatchingEngine/Common/performance_dashboard.cpp"
+    "ExchangeMatchingEngine/Common/tcp_socket.cpp"
+    "ExchangeMatchingEngine/Common/tcp_server.cpp"
+    "ExchangeMatchingEngine/Common/mcast_socket.cpp"
 )
 
 # Exchange executable
 add_executable(exchange_main
-    "Exchange Matching Engine /EXCHANGE/exchange_main.cpp"
-    "Exchange Matching Engine /EXCHANGE/matcher/matching_engine.cpp"
-    "Exchange Matching Engine /EXCHANGE/matcher/me_order_book.cpp"
-    "Exchange Matching Engine /EXCHANGE/matcher/me_order.cpp"
-    "Exchange Matching Engine /EXCHANGE/market_data/market_data_publisher.cpp"
-    "Exchange Matching Engine /EXCHANGE/market_data/snapshot_synthesizer.cpp"
-    "Exchange Matching Engine /EXCHANGE/order_server/order_server.cpp"
+    "ExchangeMatchingEngine/EXCHANGE/exchange_main.cpp"
+    "ExchangeMatchingEngine/EXCHANGE/matcher/matching_engine.cpp"
+    "ExchangeMatchingEngine/EXCHANGE/matcher/me_order_book.cpp"
+    "ExchangeMatchingEngine/EXCHANGE/matcher/me_order.cpp"
+    "ExchangeMatchingEngine/EXCHANGE/market_data/market_data_publisher.cpp"
+    "ExchangeMatchingEngine/EXCHANGE/market_data/snapshot_synthesizer.cpp"
+    "ExchangeMatchingEngine/EXCHANGE/order_server/order_server.cpp"
     ${COMMON_SOURCES}
 )
 

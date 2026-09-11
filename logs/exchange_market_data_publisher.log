@@ -1,2 +1,0 @@
-/Users/ranjanshahajishitole/Desktop/GIthub/Live-High-Frequency-Trading-Exchange-Engine/Exchange Matching Engine /Common Files/socket_utils.h:103 createSocket() 12:33:25.355899000 cfg:SocketCfg[ip:233.252.14.3 iface:lo port:20001 is_udp:1 is_listening:0 needs_SO_timestamp:0]
-/Users/ranjanshahajishitole/Desktop/GIthub/Live-High-Frequency-Trading-Exchange-Engine/Exchange Matching Engine /EXCHANGE/market_data/market_data_publisher.cpp:16 run() 12:33:26.463668000

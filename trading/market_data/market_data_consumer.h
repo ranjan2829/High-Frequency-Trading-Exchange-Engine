@@ -27,11 +27,14 @@ namespace Trading {
     /// Start and stop the market data consumer main thread.
     auto start() {
       run_ = true;
-      ASSERT(Common::createAndStartThread(-1, "Trading/MarketDataConsumer", [this]() { run(); }) != nullptr, "Failed to start MarketData thread.");
+      thread_ = Common::createAndStartThread(-1, "Trading/MarketDataConsumer", [this]() { run(); });
+    ASSERT(thread_ != nullptr, "Failed to start thread.");
     }
 
     auto stop() -> void {
       run_ = false;
+      if (thread_ && thread_->joinable()) { thread_->join(); }
+      thread_.reset();
     }
 
     /// Deleted default, copy & move constructors and assignment-operators.
@@ -53,6 +56,7 @@ namespace Trading {
     Exchange::MEMarketUpdateLFQueue *incoming_md_updates_ = nullptr;
 
     std::atomic<bool> run_ = {false};
+    std::unique_ptr<std::thread> thread_;
 
     std::string time_str_;
     Logger logger_;
