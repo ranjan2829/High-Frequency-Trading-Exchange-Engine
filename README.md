@@ -130,6 +130,7 @@ MIT — see `LICENSE`.
 - Hot-path logging compiled out in Release (`NDEBUG` / `HOT_LOG`)
 - Runtime config via env: `HFT_IFACE`, `HFT_ORDER_IP`, `HFT_ORDER_PORT`, `HFT_SNAPSHOT_IP`, `HFT_SNAPSHOT_PORT`, `HFT_INCREMENTAL_IP`, `HFT_INCREMENTAL_PORT`
 - Order gateway drops bad sequence / socket-mismatch messages instead of forwarding
-- `make test` / CTest for LFQ; `make bench` for host LFQ microbench
+- `make test` — LFQ + match smoke (crossing buy/sell fills)
+- Fixed match-path null deref after full fill emptied a price level; `make bench` for host LFQ microbench
 
 This remains a research/teaching exchange core. Production ops still need persistence, auth, risk at the edge, monitoring, and careful NIC/kernel tuning.

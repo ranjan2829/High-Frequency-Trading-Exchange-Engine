@@ -79,16 +79,7 @@ namespace Exchange {
         START_LATENCY_MEASURE(Exchange_MEOrderBook_match);
         match(ticker_id, client_id, side, client_order_id, new_market_order_id, ask_itr, &leaves_qty);
         END_LATENCY_MEASURE(Exchange_MEOrderBook_match, (*logger_));
-        
-        // If this price level is empty, move to next level
-        if (!asks_by_price_->first_me_order_) {
-          auto next_ask = asks_by_price_->next_entry_;
-          if (next_ask == asks_by_price_) {
-            asks_by_price_ = nullptr; // No more ask levels
-          } else {
-            asks_by_price_ = next_ask;
-          }
-        }
+        // removeOrder() already advanced/cleared asks_by_price_ when a level emptied.
       }
     } else if (side == Side::SELL) {
       // SELL order matches against BID orders (buy orders)
@@ -107,16 +98,7 @@ namespace Exchange {
         START_LATENCY_MEASURE(Exchange_MEOrderBook_match);
         match(ticker_id, client_id, side, client_order_id, new_market_order_id, bid_itr, &leaves_qty);
         END_LATENCY_MEASURE(Exchange_MEOrderBook_match, (*logger_));
-        
-        // If this price level is empty, move to next level
-        if (!bids_by_price_->first_me_order_) {
-          auto next_bid = bids_by_price_->next_entry_;
-          if (next_bid == bids_by_price_) {
-            bids_by_price_ = nullptr; // No more bid levels
-          } else {
-            bids_by_price_ = next_bid;
-          }
-        }
+        // removeOrder() already advanced/cleared bids_by_price_ when a level emptied.
       }
     }
 
