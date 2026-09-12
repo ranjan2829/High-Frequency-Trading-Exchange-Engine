@@ -38,6 +38,9 @@ namespace Common {
   private:
     /// Add and remove socket file descriptors to and from the EPOLL/KQUEUE list.
     auto addToEpollList(TCPSocket *socket);
+    auto removeFromEpollList(TCPSocket *socket) -> void;
+    /// Drop a dead client: epoll, recv/send lists, and owned storage.
+    auto removeDeadSocket(TCPSocket *socket) -> void;
 
   public:
     /// Socket on which this server is listening for new connections on.

@@ -1,5 +1,9 @@
 #include "tcp_server.h"
 
+#include <algorithm>
+#include <cerrno>
+#include <cstring>
+
 namespace Common {
   /// Add and remove socket file descriptors to and from the EPOLL/KQUEUE list.
   auto TCPServer::addToEpollList(TCPSocket *socket) {
@@ -11,6 +15,36 @@ namespace Common {
     epoll_event ev{EPOLLET | EPOLLIN, {reinterpret_cast<void *>(socket)}};
     return !epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, socket->socket_fd_, &ev);
 #endif
+  }
+
+  auto TCPServer::removeFromEpollList(TCPSocket *socket) -> void {
+    if (!socket || socket->socket_fd_ == -1) {
+      return;
+    }
+#ifdef __APPLE__
+    struct kevent ev;
+    EV_SET(&ev, socket->socket_fd_, EVFILT_READ, EV_DELETE, 0, 0, socket);
+    kevent(kqueue_fd_, &ev, 1, nullptr, 0, nullptr);
+#else
+    epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, socket->socket_fd_, nullptr);
+#endif
+  }
+
+  auto TCPServer::removeDeadSocket(TCPSocket *socket) -> void {
+    if (!socket || socket == &listener_socket_) {
+      return;
+    }
+    logger_.log("%:% %() % removing dead socket:%\n", __FILE__, __LINE__, __FUNCTION__,
+                Common::getCurrentTimeStr(&time_str_), socket->socket_fd_);
+
+    removeFromEpollList(socket);
+    receive_sockets_.erase(std::remove(receive_sockets_.begin(), receive_sockets_.end(), socket), receive_sockets_.end());
+    send_sockets_.erase(std::remove(send_sockets_.begin(), send_sockets_.end(), socket), send_sockets_.end());
+    socket->close();
+    owned_sockets_.erase(
+        std::remove_if(owned_sockets_.begin(), owned_sockets_.end(),
+                       [socket](const std::unique_ptr<TCPSocket> &p) { return p.get() == socket; }),
+        owned_sockets_.end());
   }
 
   /// Start listening for connections on the provided interface and port.
@@ -48,7 +82,8 @@ namespace Common {
 
   /// Check for new connections or dead connections and update containers that track the sockets.
   auto TCPServer::poll() noexcept -> void {
-    const int max_events = 1 + send_sockets_.size() + receive_sockets_.size();
+    const int max_events = 1 + static_cast<int>(send_sockets_.size() + receive_sockets_.size());
+    std::vector<TCPSocket *> dead;
 
 #ifdef __APPLE__
     struct timespec timeout = {0, 0}; // Non-blocking
@@ -58,7 +93,6 @@ namespace Common {
       const auto &event = events_[i];
       auto socket = reinterpret_cast<TCPSocket *>(event.udata);
 
-      // Check for new connections.
       if (event.filter == EVFILT_READ) {
         if (socket == &listener_socket_) {
           logger_.log("%:% %() % EVFILT_READ listener_socket:%\n", __FILE__, __LINE__, __FUNCTION__,
@@ -82,8 +116,9 @@ namespace Common {
       if (event.flags & (EV_EOF | EV_ERROR)) {
         logger_.log("%:% %() % EV_ERROR socket:%\n", __FILE__, __LINE__, __FUNCTION__,
                     Common::getCurrentTimeStr(&time_str_), socket->socket_fd_);
-        if (std::find(receive_sockets_.begin(), receive_sockets_.end(), socket) == receive_sockets_.end())
-          receive_sockets_.push_back(socket);
+        if (socket != &listener_socket_) {
+          dead.push_back(socket);
+        }
       }
     }
 #else
@@ -93,7 +128,6 @@ namespace Common {
       const auto &event = events_[i];
       auto socket = reinterpret_cast<TCPSocket *>(event.data.ptr);
 
-      // Check for new connections.
       if (event.events & EPOLLIN) {
         if (socket == &listener_socket_) {
           logger_.log("%:% %() % EPOLLIN listener_socket:%\n", __FILE__, __LINE__, __FUNCTION__,
@@ -117,11 +151,16 @@ namespace Common {
       if (event.events & (EPOLLERR | EPOLLHUP)) {
         logger_.log("%:% %() % EPOLLERR socket:%\n", __FILE__, __LINE__, __FUNCTION__,
                     Common::getCurrentTimeStr(&time_str_), socket->socket_fd_);
-        if (std::find(receive_sockets_.begin(), receive_sockets_.end(), socket) == receive_sockets_.end())
-          receive_sockets_.push_back(socket);
+        if (socket != &listener_socket_) {
+          dead.push_back(socket);
+        }
       }
     }
 #endif
+
+    for (auto *s : dead) {
+      removeDeadSocket(s);
+    }
 
     // Accept a new connection, create a TCPSocket and add it to our containers.
     while (have_new_connection) {

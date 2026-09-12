@@ -1,6 +1,23 @@
 #include "tcp_socket.h"
 
+#include <cerrno>
+#include <cstring>
+#include <unistd.h>
+
 namespace Common {
+  TCPSocket::~TCPSocket() {
+    close();
+  }
+
+  auto TCPSocket::close() noexcept -> void {
+    if (socket_fd_ != -1) {
+      ::close(socket_fd_);
+      socket_fd_ = -1;
+    }
+    next_send_valid_index_ = 0;
+    next_rcv_valid_index_ = 0;
+  }
+
   /// Create TCPSocket with provided attributes to either listen-on / connect-to.
   auto TCPSocket::connect(const std::string &ip, const std::string &iface, int port, bool is_listening) -> int {
     // Note that needs_so_timestamp=true for FIFOSequencer.
@@ -16,6 +33,10 @@ namespace Common {
 
   /// Called to publish outgoing data from the buffers as well as check for and callback if data is available in the read buffers.
   auto TCPSocket::sendAndRecv() noexcept -> bool {
+    if (socket_fd_ == -1) {
+      return false;
+    }
+
     char ctrl[CMSG_SPACE(sizeof(struct timeval))];
     auto cmsg = reinterpret_cast<struct cmsghdr *>(&ctrl);
 
@@ -25,7 +46,7 @@ namespace Common {
     // Non-blocking call to read available data.
     const auto read_size = recvmsg(socket_fd_, &msg, MSG_DONTWAIT);
     if (read_size > 0) {
-      next_rcv_valid_index_ += read_size;
+      next_rcv_valid_index_ += static_cast<size_t>(read_size);
 
       Nanos kernel_time = 0;
       timeval time_kernel;
@@ -33,22 +54,33 @@ namespace Common {
           cmsg->cmsg_type == SCM_TIMESTAMP &&
           cmsg->cmsg_len == CMSG_LEN(sizeof(time_kernel))) {
         memcpy(&time_kernel, CMSG_DATA(cmsg), sizeof(time_kernel));
-        kernel_time = time_kernel.tv_sec * NANOS_TO_SECS + time_kernel.tv_usec * NANOS_TO_MICROS; // convert timestamp to nanoseconds.
+        kernel_time = time_kernel.tv_sec * NANOS_TO_SECS + time_kernel.tv_usec * NANOS_TO_MICROS;
       }
 
       const auto user_time = getCurrentNanos();
 
       logger_.log("%:% %() % read socket:% len:% utime:% ktime:% diff:%\n", __FILE__, __LINE__, __FUNCTION__,
                   Common::getCurrentTimeStr(&time_str_), socket_fd_, next_rcv_valid_index_, user_time, kernel_time, (user_time - kernel_time));
-      recv_callback_(this, kernel_time);
+      if (recv_callback_) {
+        recv_callback_(this, kernel_time);
+      }
     }
 
     if (next_send_valid_index_ > 0) {
-      // Non-blocking call to send data.
       const auto n = ::send(socket_fd_, outbound_data_.data(), next_send_valid_index_, MSG_DONTWAIT | MSG_NOSIGNAL);
-      logger_.log("%:% %() % send socket:% len:%\n", __FILE__, __LINE__, __FUNCTION__, Common::getCurrentTimeStr(&time_str_), socket_fd_, n);
+      logger_.log("%:% %() % send socket:% len:%\n", __FILE__, __LINE__, __FUNCTION__,
+                  Common::getCurrentTimeStr(&time_str_), socket_fd_, n);
+      if (n > 0) {
+        const auto sent = static_cast<size_t>(n);
+        if (sent < next_send_valid_index_) {
+          std::memmove(outbound_data_.data(), outbound_data_.data() + sent, next_send_valid_index_ - sent);
+          next_send_valid_index_ -= sent;
+        } else {
+          next_send_valid_index_ = 0;
+        }
+      }
+      // n < 0 (EAGAIN/EWOULDBLOCK): retain buffer for retry
     }
-    next_send_valid_index_ = 0;
 
     return (read_size > 0);
   }
