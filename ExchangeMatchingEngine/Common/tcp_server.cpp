@@ -139,7 +139,8 @@ namespace Common {
       logger_.log("%:% %() % accepted socket:%\n", __FILE__, __LINE__, __FUNCTION__,
                   Common::getCurrentTimeStr(&time_str_), fd);
 
-      auto socket = new TCPSocket(logger_);
+      owned_sockets_.push_back(std::make_unique<TCPSocket>(logger_));
+      auto *socket = owned_sockets_.back().get();
       socket->socket_fd_ = fd;
       socket->recv_callback_ = recv_callback_;
       ASSERT(addToEpollList(socket), "Unable to add socket. error:" + std::string(std::strerror(errno)));

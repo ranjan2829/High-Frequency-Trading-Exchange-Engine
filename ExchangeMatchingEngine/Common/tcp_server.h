@@ -1,6 +1,8 @@
 #pragma once
 
 #include "tcp_socket.h"
+#include <memory>
+#include <vector>
 
 #ifdef __APPLE__
 #include <sys/event.h>
@@ -14,6 +16,15 @@ namespace Common {
     explicit TCPServer(Logger &logger)
         : listener_socket_(logger), logger_(logger) {
     }
+
+    ~TCPServer() {
+      receive_sockets_.clear();
+      send_sockets_.clear();
+      owned_sockets_.clear();
+    }
+
+    TCPServer(const TCPServer &) = delete;
+    TCPServer &operator=(const TCPServer &) = delete;
 
     /// Start listening for connections on the provided interface and port.
     auto listen(const std::string &iface, int port) -> void;
@@ -41,6 +52,8 @@ namespace Common {
 
     /// Collection of all sockets, sockets for incoming data, sockets for outgoing data and dead connections.
     std::vector<TCPSocket *> receive_sockets_, send_sockets_;
+    /// Ownership of accepted client sockets (cleaned up in destructor).
+    std::vector<std::unique_ptr<TCPSocket>> owned_sockets_;
 
     /// Function wrapper to call back when data is available.
     std::function<void(TCPSocket *s, Nanos rx_time)> recv_callback_ = nullptr;

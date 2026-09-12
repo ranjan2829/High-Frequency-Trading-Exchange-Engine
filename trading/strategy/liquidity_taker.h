@@ -17,21 +17,21 @@ namespace Trading {
 
     /// Process order book updates, which for the liquidity taking algorithm is none.
     auto onOrderBookUpdate(TickerId ticker_id, Price price, Side side, MarketOrderBook *) noexcept -> void {
-      logger_->log("%:% %() % ticker:% price:% side:%\n", __FILE__, __LINE__, __FUNCTION__,
+      HOT_LOG(*logger_, "%:% %() % ticker:% price:% side:%\n", __FILE__, __LINE__, __FUNCTION__,
                    Common::getCurrentTimeStr(&time_str_), ticker_id, Common::priceToString(price).c_str(),
                    Common::sideToString(side).c_str());
     }
 
     /// Process trade events, fetch the aggressive trade ratio from the feature engine, check against the trading threshold and send aggressive orders.
     auto onTradeUpdate(const Exchange::MEMarketUpdate *market_update, MarketOrderBook *book) noexcept -> void {
-      logger_->log("%:% %() % %\n", __FILE__, __LINE__, __FUNCTION__, Common::getCurrentTimeStr(&time_str_),
+      HOT_LOG(*logger_, "%:% %() % %\n", __FILE__, __LINE__, __FUNCTION__, Common::getCurrentTimeStr(&time_str_),
                    market_update->toString().c_str());
 
       const auto bbo = book->getBBO();
-      const auto agg_qty_ratio = feature_engine_->getAggTradeQtyRatio();
+      const auto agg_qty_ratio = feature_engine_->getAggTradeQtyRatio(market_update->ticker_id_);
 
       if (LIKELY(bbo->bid_price_ != Price_INVALID && bbo->ask_price_ != Price_INVALID && agg_qty_ratio != Feature_INVALID)) {
-        logger_->log("%:% %() % % agg-qty-ratio:%\n", __FILE__, __LINE__, __FUNCTION__,
+        HOT_LOG(*logger_, "%:% %() % % agg-qty-ratio:%\n", __FILE__, __LINE__, __FUNCTION__,
                      Common::getCurrentTimeStr(&time_str_),
                      bbo->toString().c_str(), agg_qty_ratio);
 
@@ -51,7 +51,7 @@ namespace Trading {
 
     /// Process client responses for the strategy's orders.
     auto onOrderUpdate(const Exchange::MEClientResponse *client_response) noexcept -> void {
-      logger_->log("%:% %() % %\n", __FILE__, __LINE__, __FUNCTION__, Common::getCurrentTimeStr(&time_str_),
+      HOT_LOG(*logger_, "%:% %() % %\n", __FILE__, __LINE__, __FUNCTION__, Common::getCurrentTimeStr(&time_str_),
                    client_response->toString().c_str());
       START_MEASURE(Trading_OrderManager_onOrderUpdate);
       order_manager_->onOrderUpdate(client_response);
