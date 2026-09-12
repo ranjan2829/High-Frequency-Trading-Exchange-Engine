@@ -22,3 +22,15 @@ jobs:
         run: cmake --build build -j 4
       - name: Make fallback
         run: make -j 4 && ./exchange_main --help >/dev/null 2>&1 || true
+
+  asan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install
+        run: sudo apt-get update && sudo apt-get install -y g++
+      - name: Build+test with ASan/UBSan
+        run: |
+          make clean || true
+          make -j 4 CXXFLAGS="-std=c++20 -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer -Wall -Wextra -Wno-unused-parameter -pthread"
+          make test CXXFLAGS="-std=c++20 -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer -Wall -Wextra -Wno-unused-parameter -pthread"
