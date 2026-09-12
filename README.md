@@ -124,6 +124,8 @@ MIT — see `LICENSE`.
 
 ## Production hardening (2026+)
 
+- Per-ticker FeatureEngine state for maker/taker signals
+- TCPServer owns accepted sockets (no leak on shutdown)
 - Sparse order maps (no multi‑GiB dense arrays); exact price→level map (no `%` collisions)
 - Hot-path logging compiled out in Release (`NDEBUG` / `HOT_LOG`)
 - Runtime config via env: `HFT_IFACE`, `HFT_ORDER_IP`, `HFT_ORDER_PORT`, `HFT_SNAPSHOT_IP`, `HFT_SNAPSHOT_PORT`, `HFT_INCREMENTAL_IP`, `HFT_INCREMENTAL_PORT`
