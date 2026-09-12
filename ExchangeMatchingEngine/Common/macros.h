@@ -26,3 +26,10 @@ inline auto FATAL(const std::string &msg) noexcept {
 
   exit(EXIT_FAILURE);
 }
+
+/// Hot-path logging: compiled out in Release (NDEBUG) for production latency.
+#ifdef NDEBUG
+  #define HOT_LOG(...) ((void)0)
+#else
+  #define HOT_LOG(logger, ...) (logger).log(__VA_ARGS__)
+#endif

@@ -9,6 +9,7 @@
 #include "order_gateway.h"
 #include "market_data_consumer.h"
 #include "logging.h"
+#include "runtime_config.h"
 
 static std::unique_ptr<Common::Logger> logger;
 static std::unique_ptr<Trading::TradeEngine> trade_engine;
@@ -56,19 +57,20 @@ int main(int argc, char **argv) {
                                                          &market_updates);
   trade_engine->start();
 
-  const std::string order_gw_ip = "127.0.0.1";
+  const auto cfg = Common::RuntimeConfig::fromEnv();
+  const std::string order_gw_ip = cfg.order_ip;
   const std::string order_gw_iface = "lo";
-  const int order_gw_port = 12345;
+  const int order_gw_port = cfg.order_port;
 
   logger->log("%:% %() % Starting Order Gateway...\n", __FILE__, __LINE__, __FUNCTION__, Common::getCurrentTimeStr(&time_str));
   order_gateway = std::make_unique<Trading::OrderGateway>(client_id, &client_requests, &client_responses, order_gw_ip, order_gw_iface, order_gw_port);
   order_gateway->start();
 
   const std::string mkt_data_iface = "lo";
-  const std::string snapshot_ip = "233.252.14.1";
-  const int snapshot_port = 20000;
-  const std::string incremental_ip = "233.252.14.3";
-  const int incremental_port = 20001;
+  const std::string snapshot_ip = cfg.snapshot_ip;
+  const int snapshot_port = cfg.snapshot_port;
+  const std::string incremental_ip = cfg.incremental_ip;
+  const int incremental_port = cfg.incremental_port;
 
   logger->log("%:% %() % Starting Market Data Consumer...\n", __FILE__, __LINE__, __FUNCTION__, Common::getCurrentTimeStr(&time_str));
   market_data_consumer = std::make_unique<Trading::MarketDataConsumer>(client_id, &market_updates, mkt_data_iface, snapshot_ip, snapshot_port, incremental_ip, incremental_port);

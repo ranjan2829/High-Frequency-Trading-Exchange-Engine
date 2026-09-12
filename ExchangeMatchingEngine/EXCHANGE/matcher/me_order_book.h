@@ -75,26 +75,15 @@ namespace Exchange {
       return next_market_order_id_++;
     }
 
-    auto priceToIndex(Price price) const noexcept {
-      // Cast through unsigned so negative prices still hash stably.
-      return static_cast<size_t>(price) & (ME_MAX_PRICE_LEVELS - 1);
-    }
-
-    /// Fetch and return the MEOrdersAtPrice corresponding to the provided price.
+        /// Fetch and return the MEOrdersAtPrice corresponding to the provided price.
     auto getOrdersAtPrice(Price price) const noexcept -> MEOrdersAtPrice * {
-      return price_orders_at_price_.at(priceToIndex(price));
+      const auto it = price_orders_at_price_.find(price);
+      return it == price_orders_at_price_.end() ? nullptr : it->second;
     }
 
     /// Add a new MEOrdersAtPrice at the correct price into the containers - the hash map and the doubly linked list of price levels.
     auto addOrdersAtPrice(MEOrdersAtPrice *new_orders_at_price) noexcept {
-      // Bounds check for price index
-      auto price_index = priceToIndex(new_orders_at_price->price_);
-      if (UNLIKELY(price_index >= price_orders_at_price_.size())) {
-        logger_->log("ERROR: Price index out of bounds: %\n", price_index);
-        return;
-      }
-      
-      price_orders_at_price_.at(price_index) = new_orders_at_price;
+      price_orders_at_price_[new_orders_at_price->price_] = new_orders_at_price;
 
       const auto best_orders_by_price = (new_orders_at_price->side_ == Side::BUY ? bids_by_price_ : asks_by_price_);
       if (UNLIKELY(!best_orders_by_price)) {
@@ -149,6 +138,10 @@ namespace Exchange {
       const auto best_orders_by_price = (side == Side::BUY ? bids_by_price_ : asks_by_price_);
       auto orders_at_price = getOrdersAtPrice(price);
 
+      if (UNLIKELY(!orders_at_price)) {
+        return;
+      }
+
       if (UNLIKELY(orders_at_price->next_entry_ == orders_at_price)) { // empty side of book.
         (side == Side::BUY ? bids_by_price_ : asks_by_price_) = nullptr;
       } else {
@@ -162,8 +155,7 @@ namespace Exchange {
         orders_at_price->prev_entry_ = orders_at_price->next_entry_ = nullptr;
       }
 
-      price_orders_at_price_.at(priceToIndex(price)) = nullptr;
-
+      price_orders_at_price_.erase(price);
       orders_at_price_pool_.deallocate(orders_at_price);
     }
 
@@ -203,7 +195,7 @@ namespace Exchange {
         order->prev_order_ = order->next_order_ = nullptr;
       }
 
-      cid_oid_to_order_.at(order->client_id_).at(order->client_order_id_) = nullptr;
+      cid_oid_to_order_[order->client_id_].erase(order->client_order_id_);
       order_pool_.deallocate(order);
     }
 
@@ -225,7 +217,7 @@ namespace Exchange {
         first_order->prev_order_ = order;
       }
 
-      cid_oid_to_order_.at(order->client_id_).at(order->client_order_id_) = order;
+      cid_oid_to_order_[order->client_id_][order->client_order_id_] = order;
     }
   };
 

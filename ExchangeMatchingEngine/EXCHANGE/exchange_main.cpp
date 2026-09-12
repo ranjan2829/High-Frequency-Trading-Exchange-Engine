@@ -7,6 +7,7 @@
 #include "order_server.h"
 #include "performance_dashboard.h"
 #include "latency_tracker.h"
+#include "runtime_config.h"
 
 static std::unique_ptr<Common::Logger> logger;
 static std::unique_ptr<Exchange::MatchingEngine> matching_engine;
@@ -38,19 +39,14 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char **argv) {
   matching_engine = std::make_unique<Exchange::MatchingEngine>(&client_requests, &client_responses, &market_updates);
   matching_engine->start();
 
-  const std::string mkt_pub_iface = "lo";
-  const std::string snap_pub_ip = "233.252.14.1", inc_pub_ip = "233.252.14.3";
-  const int snap_pub_port = 20000, inc_pub_port = 20001;
+  const auto cfg = Common::RuntimeConfig::fromEnv();
 
   logger->log("%:% %() % Starting Market Data Publisher...\n", __FILE__, __LINE__, __FUNCTION__, Common::getCurrentTimeStr(&time_str));
-  market_data_publisher = std::make_unique<Exchange::MarketDataPublisher>(&market_updates, mkt_pub_iface, snap_pub_ip, snap_pub_port, inc_pub_ip, inc_pub_port);
+  market_data_publisher = std::make_unique<Exchange::MarketDataPublisher>(&market_updates, cfg.iface, cfg.snapshot_ip, cfg.snapshot_port, cfg.incremental_ip, cfg.incremental_port);
   market_data_publisher->start();
 
-  const std::string order_gw_iface = "lo";
-  const int order_gw_port = 12345;
-
   logger->log("%:% %() % Starting Order Server...\n", __FILE__, __LINE__, __FUNCTION__, Common::getCurrentTimeStr(&time_str));
-  order_server = std::make_unique<Exchange::OrderServer>(&client_requests, &client_responses, order_gw_iface, order_gw_port);
+  order_server = std::make_unique<Exchange::OrderServer>(&client_requests, &client_responses, cfg.iface, cfg.order_port);
   order_server->start();
 
   logger->log("%:% %() % NANOSECOND HFT Engine started successfully! Performance monitoring active.\n", __FILE__, __LINE__, __FUNCTION__, Common::getCurrentTimeStr(&time_str));
