@@ -4,6 +4,8 @@
 #include <fstream>
 #include <cstdio>
 #include <memory>
+#include <atomic>
+#include <thread>
 
 #include "macros.h"
 #include "lf_queue.h"
@@ -45,47 +47,50 @@ namespace Common {
 
   class Logger final {
   public:
+    auto drainOnce() noexcept {
+      for (auto next = queue_.getNextToRead(); next; next = queue_.getNextToRead()) {
+        switch (next->type_) {
+          case LogType::CHAR:
+            file_ << next->u_.c;
+            break;
+          case LogType::INTEGER:
+            file_ << next->u_.i;
+            break;
+          case LogType::LONG_INTEGER:
+            file_ << next->u_.l;
+            break;
+          case LogType::LONG_LONG_INTEGER:
+            file_ << next->u_.ll;
+            break;
+          case LogType::UNSIGNED_INTEGER:
+            file_ << next->u_.u;
+            break;
+          case LogType::UNSIGNED_LONG_INTEGER:
+            file_ << next->u_.ul;
+            break;
+          case LogType::UNSIGNED_LONG_LONG_INTEGER:
+            file_ << next->u_.ull;
+            break;
+          case LogType::FLOAT:
+            file_ << next->u_.f;
+            break;
+          case LogType::DOUBLE:
+            file_ << next->u_.d;
+            break;
+        }
+        queue_.updateReadIndex();
+      }
+      file_.flush();
+    }
+
     /// Consumes from the lock free queue of log entries and writes to the output log file.
     auto flushQueue() noexcept {
-      while (running_) {
-
-        for (auto next = queue_.getNextToRead(); queue_.size() && next; next = queue_.getNextToRead()) {
-          switch (next->type_) {
-            case LogType::CHAR:
-              file_ << next->u_.c;
-              break;
-            case LogType::INTEGER:
-              file_ << next->u_.i;
-              break;
-            case LogType::LONG_INTEGER:
-              file_ << next->u_.l;
-              break;
-            case LogType::LONG_LONG_INTEGER:
-              file_ << next->u_.ll;
-              break;
-            case LogType::UNSIGNED_INTEGER:
-              file_ << next->u_.u;
-              break;
-            case LogType::UNSIGNED_LONG_INTEGER:
-              file_ << next->u_.ul;
-              break;
-            case LogType::UNSIGNED_LONG_LONG_INTEGER:
-              file_ << next->u_.ull;
-              break;
-            case LogType::FLOAT:
-              file_ << next->u_.f;
-              break;
-            case LogType::DOUBLE:
-              file_ << next->u_.d;
-              break;
-          }
-          queue_.updateReadIndex();
-        }
-        file_.flush();
-
+      while (running_.load(std::memory_order_acquire)) {
+        drainOnce();
         using namespace std::literals::chrono_literals;
-        std::this_thread::sleep_for(10ms);
+        std::this_thread::sleep_for(1ms);
       }
+      drainOnce(); // final drain after stop
     }
 
     explicit Logger(const std::string &file_name)
@@ -100,12 +105,12 @@ namespace Common {
       std::string time_str;
       std::cerr << Common::getCurrentTimeStr(&time_str) << " Flushing and closing Logger for " << file_name_ << std::endl;
 
-      while (queue_.size()) {
-        using namespace std::literals::chrono_literals;
-        std::this_thread::sleep_for(1s);
+      // Signal stop first — never spin-wait on queue size (char-at-a-time logs made that hang).
+      running_.store(false, std::memory_order_release);
+      if (logger_thread_ && logger_thread_->joinable()) {
+        logger_thread_->join();
       }
-      running_ = false;
-      logger_thread_->join();
+      logger_thread_.reset();
 
       file_.close();
       std::cerr << Common::getCurrentTimeStr(&time_str) << " Logger for " << file_name_ << " exiting." << std::endl;

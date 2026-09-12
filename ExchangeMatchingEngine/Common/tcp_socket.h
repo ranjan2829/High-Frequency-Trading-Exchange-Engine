@@ -16,8 +16,13 @@ namespace Common {
       inbound_data_.resize(TCPBufferSize);
     }
 
+    ~TCPSocket();
+
     /// Create TCPSocket with provided attributes to either listen-on / connect-to.
     auto connect(const std::string &ip, const std::string &iface, int port, bool is_listening) -> int;
+
+    /// Close the fd if open (idempotent).
+    auto close() noexcept -> void;
 
     /// Called to publish outgoing data from the buffers as well as check for and callback if data is available in the read buffers.
     auto sendAndRecv() noexcept -> bool;
