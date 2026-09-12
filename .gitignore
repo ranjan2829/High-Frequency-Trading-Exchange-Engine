@@ -20,3 +20,7 @@ logs/
 *.user
 .DS_Store
 .DS_Store
+tests/test_lf_queue
+tests/test_order_book_smoke
+tests/test_match_smoke
+bench/bench_lf_queue
