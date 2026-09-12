@@ -60,7 +60,7 @@ namespace Exchange {
 
     /// Write client responses to the lock free queue for the order server to consume.
     auto sendClientResponse(const MEClientResponse *client_response) noexcept {
-      logger_.log("%:% %() % Sending %\n", __FILE__, __LINE__, __FUNCTION__, Common::getCurrentTimeStr(&time_str_), client_response->toString());
+      HOT_LOG(logger_, "%:% %() % Sending %\n", __FILE__, __LINE__, __FUNCTION__, Common::getCurrentTimeStr(&time_str_), client_response->toString());
       auto next_write = outgoing_ogw_responses_->getNextToWriteTo();
       if (!next_write) [[unlikely]] { return; }
       *next_write = std::move(*client_response);
@@ -70,7 +70,7 @@ namespace Exchange {
 
     /// Write market data update to the lock free queue for the market data publisher to consume.
     auto sendMarketUpdate(const MEMarketUpdate *market_update) noexcept {
-      logger_.log("%:% %() % Sending %\n", __FILE__, __LINE__, __FUNCTION__, Common::getCurrentTimeStr(&time_str_), market_update->toString());
+      HOT_LOG(logger_, "%:% %() % Sending %\n", __FILE__, __LINE__, __FUNCTION__, Common::getCurrentTimeStr(&time_str_), market_update->toString());
       auto next_write = outgoing_md_updates_->getNextToWriteTo();
       if (!next_write) [[unlikely]] { return; }
       *next_write = *market_update;
@@ -91,7 +91,7 @@ namespace Exchange {
           START_LATENCY_MEASURE(LFQueue_read);
           END_LATENCY_MEASURE(LFQueue_read, logger_);
 
-          logger_.log("%:% %() % Processing %\n", __FILE__, __LINE__, __FUNCTION__, Common::getCurrentTimeStr(&time_str_),
+          HOT_LOG(logger_, "%:% %() % Processing %\n", __FILE__, __LINE__, __FUNCTION__, Common::getCurrentTimeStr(&time_str_),
                       me_client_request->toString());
           START_LATENCY_MEASURE(Exchange_MatchingEngine_processClientRequest);
           processClientRequest(me_client_request);

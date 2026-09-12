@@ -71,16 +71,15 @@ namespace Exchange {
             cid_tcp_socket_[request->me_client_request_.client_id_] = socket;
           }
 
-          if (cid_tcp_socket_[request->me_client_request_.client_id_] != socket) { // TODO - change this to send a reject back to the client.
-            logger_.log("%:% %() % Received ClientRequest from ClientId:% on different socket:% expected:%\n", __FILE__, __LINE__, __FUNCTION__,
-                        Common::getCurrentTimeStr(&time_str_), request->me_client_request_.client_id_, socket->socket_fd_,
-                        cid_tcp_socket_[request->me_client_request_.client_id_]->socket_fd_);
+          if (cid_tcp_socket_[request->me_client_request_.client_id_] != socket) {
+            logger_.log("%:% %() % Rejected socket mismatch ClientId:%\n", __FILE__, __LINE__, __FUNCTION__,
+                        Common::getCurrentTimeStr(&time_str_), request->me_client_request_.client_id_);
             continue;
           }
 
           auto &next_exp_seq_num = cid_next_exp_seq_num_[request->me_client_request_.client_id_];
-          if (request->seq_num_ != next_exp_seq_num) { // TODO - change this to send a reject back to the client.
-            logger_.log("%:% %() % Incorrect sequence number. ClientId:% SeqNum expected:% received:%\n", __FILE__, __LINE__, __FUNCTION__,
+          if (request->seq_num_ != next_exp_seq_num) {
+            logger_.log("%:% %() % Rejected bad seq ClientId:% expected:% got:%\n", __FILE__, __LINE__, __FUNCTION__,
                         Common::getCurrentTimeStr(&time_str_), request->me_client_request_.client_id_, next_exp_seq_num, request->seq_num_);
             continue;
           }

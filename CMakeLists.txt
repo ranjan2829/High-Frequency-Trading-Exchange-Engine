@@ -61,3 +61,11 @@ add_executable(trading_main
 
 target_compile_options(trading_main PRIVATE -Wall -Wextra -Wpedantic -Wno-unused-parameter)
 target_link_libraries(trading_main pthread)
+
+enable_testing()
+add_executable(test_lf_queue tests/test_lf_queue.cpp)
+target_include_directories(test_lf_queue PRIVATE "ExchangeMatchingEngine/Common")
+add_test(NAME lf_queue COMMAND test_lf_queue)
+
+add_executable(bench_lf_queue bench/bench_lf_queue.cpp)
+target_include_directories(bench_lf_queue PRIVATE "ExchangeMatchingEngine/Common")

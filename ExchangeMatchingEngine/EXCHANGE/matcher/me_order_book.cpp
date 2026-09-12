@@ -16,9 +16,8 @@ namespace Exchange {
 
     matching_engine_ = nullptr;
     bids_by_price_ = asks_by_price_ = nullptr;
-    for (auto &itr: cid_oid_to_order_) {
-      itr.fill(nullptr);
-    }
+    cid_oid_to_order_.clear();
+    price_orders_at_price_.clear();
   }
 
   /// Match a new aggressive order with the provided parameters against a passive order held in the bid_itr object and generate client responses and market updates for the match.
@@ -151,13 +150,15 @@ namespace Exchange {
 
   /// Attempt to cancel an order in the order book, issue a cancel-rejection if order does not exist.
   auto MEOrderBook::cancel(ClientId client_id, OrderId order_id, TickerId ticker_id) noexcept -> void {
-    auto is_cancelable = (client_id < cid_oid_to_order_.size());
     MEOrder *exchange_order = nullptr;
-    if (LIKELY(is_cancelable)) {
-      auto &co_itr = cid_oid_to_order_.at(client_id);
-      exchange_order = co_itr.at(order_id);
-      is_cancelable = (exchange_order != nullptr);
+    const auto client_it = cid_oid_to_order_.find(client_id);
+    if (LIKELY(client_it != cid_oid_to_order_.end())) {
+      const auto order_it = client_it->second.find(order_id);
+      if (order_it != client_it->second.end()) {
+        exchange_order = order_it->second;
+      }
     }
+    const bool is_cancelable = (exchange_order != nullptr);
 
     if (UNLIKELY(!is_cancelable)) {
       client_response_ = {ClientResponseType::CANCEL_REJECTED, client_id, ticker_id, order_id, OrderId_INVALID,

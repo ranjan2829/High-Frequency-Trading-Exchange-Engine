@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <unordered_map>
 #include <sstream>
 #include "types.h"
 
@@ -33,9 +34,8 @@ namespace Exchange {
     auto toString() const -> std::string;
   };
 
-  using OrderHashMap = std::array<MEOrder *, ME_MAX_ORDER_IDS>;
-
-  using ClientOrderHashMap = std::array<OrderHashMap, ME_MAX_NUM_CLIENTS>;
+  /// Sparse client→order map (avoids multi‑GiB dense arrays).
+  using ClientOrderHashMap = std::unordered_map<ClientId, std::unordered_map<OrderId, MEOrder *>>;
 
   /// Used by the matching engine to represent a price level in the limit order book.
   /// Internally maintains a list of MEOrder objects arranged in FIFO order.
@@ -68,5 +68,6 @@ namespace Exchange {
     }
   };
 
-  using OrdersAtPriceHashMap = std::array<MEOrdersAtPrice *, ME_MAX_PRICE_LEVELS>;
+  /// Exact price → level (no hash collisions).
+  using OrdersAtPriceHashMap = std::unordered_map<Price, MEOrdersAtPrice *>;
 }
